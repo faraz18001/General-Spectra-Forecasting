@@ -432,37 +432,6 @@ class Model:
         if len(daily_counts) < 50:
             return False
 
-        # 3. Holidays & Regressors
-        daily_counts["is_ramadan_early"] = 0
-        daily_counts["is_ramadan_mid"] = 0
-        daily_counts["is_ramadan_late"] = 0
-
-        # ADDED: Payday Regressors (Start/End of Month)
-        # Many businesses see high traffic around salary days (25th - 5th)
-        daily_counts["is_payday"] = 0
-
-        # Vectorized payday logic
-        # Days 25-31 and 1-5
-        daily_counts.loc[daily_counts["ds"].dt.day >= 25, "is_payday"] = 1
-        daily_counts.loc[daily_counts["ds"].dt.day <= 5, "is_payday"] = 1
-
-        if events_list:
-            for event in events_list:
-                if "ramadan" in event.get("name", "").lower():
-                    start_dt = pd.Timestamp(event["start"])
-                    end_dt = pd.Timestamp(event["end"])
-                    
-                    early_end = start_dt + pd.Timedelta(days=9)
-                    mid_end = start_dt + pd.Timedelta(days=19)
-                    
-                    mask_early = (daily_counts["ds"] >= start_dt) & (daily_counts["ds"] <= early_end)
-                    mask_mid = (daily_counts["ds"] > early_end) & (daily_counts["ds"] <= mid_end)
-                    mask_late = (daily_counts["ds"] > mid_end) & (daily_counts["ds"] <= end_dt)
-                    
-                    daily_counts.loc[mask_early, "is_ramadan_early"] = 1
-                    daily_counts.loc[mask_mid, "is_ramadan_mid"] = 1
-                    daily_counts.loc[mask_late, "is_ramadan_late"] = 1
-
         holidays = self.generate_holidays(events_list)
 
         # Auto-enable yearly seasonality ONLY if dataset has at least 365 days of history
@@ -480,12 +449,6 @@ class Model:
                 changepoint_prior_scale=0.15,
                 interval_width=confidence,
             )
-            m.add_regressor("is_ramadan_early", mode="multiplicative")
-            m.add_regressor("is_ramadan_mid", mode="multiplicative")
-            m.add_regressor("is_ramadan_late", mode="multiplicative")
-            m.add_regressor(
-                "is_payday", mode="multiplicative"
-            )  # Register new regressor
             m.fit(daily_counts)
 
             # 4b. Cross-Validation (Model Quality Assessment)
@@ -514,32 +477,6 @@ class Model:
 
             # 5. Forecast
             future = m.make_future_dataframe(periods=prediction_days)
-            future["is_ramadan_early"] = 0
-            future["is_ramadan_mid"] = 0
-            future["is_ramadan_late"] = 0
-            future["is_payday"] = 0  # Initialize
-
-            # Apply Payday logic to future
-            future.loc[future["ds"].dt.day >= 25, "is_payday"] = 1
-            future.loc[future["ds"].dt.day <= 5, "is_payday"] = 1
-
-            if events_list:
-                for event in events_list:
-                    if "ramadan" in event.get("name", "").lower():
-                        start_dt = pd.Timestamp(event["start"])
-                        end_dt = pd.Timestamp(event["end"])
-                        
-                        early_end = start_dt + pd.Timedelta(days=9)
-                        mid_end = start_dt + pd.Timedelta(days=19)
-                        
-                        mask_early = (future["ds"] >= start_dt) & (future["ds"] <= early_end)
-                        mask_mid = (future["ds"] > early_end) & (future["ds"] <= mid_end)
-                        mask_late = (future["ds"] > mid_end) & (future["ds"] <= end_dt)
-                        
-                        future.loc[mask_early, "is_ramadan_early"] = 1
-                        future.loc[mask_mid, "is_ramadan_mid"] = 1
-                        future.loc[mask_late, "is_ramadan_late"] = 1
-
             fcst = m.predict(future)
 
             # Store in Dicts
