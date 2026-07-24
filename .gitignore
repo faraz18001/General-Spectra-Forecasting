@@ -1,0 +1,74 @@
+# Dependencies
+node_modules/
+bower_components/
+vendor/
+
+# Build outputs
+dist/
+build/
+out/
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Temp
+*.tmp
+*.temp
+*.cache
+
+# Package manager
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Testing
+coverage/
+.nyc_output/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+venv/
+.venv/
+fore/
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Large files
+*.rar
+
+# Data
+Data/**/*.parquet
+Data/**/*.xlsx
+Data/**/*.xls
+Data/**/*.csv
+backend/saved_state/
+
+# Other
+frontend/
+icp-ai-analytics-platform/
+.gemini/
