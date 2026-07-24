@@ -585,11 +585,6 @@ async def get_forecast_by_month(
             low_val = vals["lower"]
             upp_val = vals["upper"]
 
-            if is_weekend:
-                pred_val = 50 * len(emirate_branch_ids)
-                low_val = 0
-                upp_val = 150 * len(emirate_branch_ids)
-
             # Deviation %: average spread (±%) around the predicted value
             dev_pct = round(((upp_val - low_val) / (2 * pred_val)) * 100, 1) if pred_val > 0 else 0
 
@@ -634,12 +629,6 @@ async def get_forecast_by_month(
         predicted_value = row["predicted"]
         lower_value = row["lower_bound"]
         upper_value = row["upper_bound"]
-
-        # Weekends have very low activity
-        if is_weekend:
-            predicted_value = 50
-            lower_value = 0
-            upper_value = 150
 
         # Deviation %: average spread (±%) around the predicted value
         dev_pct = round(((upper_value - lower_value) / (2 * predicted_value)) * 100, 1) if predicted_value > 0 else 0

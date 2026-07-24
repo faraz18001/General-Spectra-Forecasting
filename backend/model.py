@@ -429,9 +429,6 @@ class Model:
         # Still keep the hard min to avoid near-zero days
         daily_counts = daily_counts[daily_counts["y"] >= 10]
 
-        # Remove weekends
-        daily_counts = daily_counts[~daily_counts["ds"].dt.dayofweek.isin([5, 6])]
-
         if len(daily_counts) < 50:
             return False
 
