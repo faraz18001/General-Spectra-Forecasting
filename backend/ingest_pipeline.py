@@ -146,13 +146,43 @@ def process_parquet(file_path):
     return row_count
 
 
+def convert_excel_to_parquet(excel_path):
+    """
+    Auto-converts an incoming Excel file (.xlsx, .xls) to .parquet in the same directory.
+    Skips conversion if the target .parquet file already exists and is newer.
+
+    Args:
+        excel_path (str): Absolute path to the Excel file.
+
+    Returns:
+        str: Absolute path to the generated/existing parquet file, or None on error.
+    """
+    base, _ = os.path.splitext(excel_path)
+    parquet_path = base + ".parquet"
+
+    # If parquet already exists and is mtime-up-to-date, reuse it
+    if os.path.exists(parquet_path):
+        if os.path.getmtime(parquet_path) >= os.path.getmtime(excel_path):
+            return parquet_path
+
+    print(f"\nAuto-converting Excel to Parquet: {excel_path} -> {parquet_path}")
+    try:
+        df = pd.read_excel(excel_path)
+        df.to_parquet(parquet_path, index=False)
+        print(f"  Successfully converted {len(df)} rows to Parquet.")
+        return parquet_path
+    except Exception as e:
+        print(f"  Error converting Excel to Parquet ({excel_path}): {e}")
+        return None
+
+
 def main():
     """
-    Main entry point. Scans all DailyTicket_Log_*.parquet files in DATA_PATH,
-    skips any already recorded in ingested_files table, and processes new ones.
-
-    This is the unified ingestion pipeline — parquet is the single source of truth.
-    New data workflow: drop xlsx → convert to parquet → run ingest.
+    Main entry point. 
+    1. Scans all Excel files (.xlsx, .xls) in DATA_PATH and auto-converts them to .parquet.
+    2. Scans all DailyTicket_Log_*.parquet files, checks ingested_files table, and processes new ones.
+    
+    Supports both direct Parquet drops and raw Excel file drops seamlessly.
     """
     print(f"Starting data ingestion pipeline at {datetime.now()}")
 
@@ -163,7 +193,19 @@ def main():
         print(f"Data path {DATA_PATH} does not exist.")
         return
 
-    # Scan all parquet files
+    # Step 1: Auto-convert any Excel files (.xlsx, .xls) to Parquet
+    excel_files = sorted(glob.glob(
+        os.path.join(DATA_PATH, "**", "*.xlsx"), recursive=True
+    ) + glob.glob(
+        os.path.join(DATA_PATH, "**", "*.xls"), recursive=True
+    ))
+
+    if excel_files:
+        print(f"Found {len(excel_files)} Excel file(s). Checking for conversion...")
+        for ef in excel_files:
+            convert_excel_to_parquet(ef)
+
+    # Step 2: Scan all parquet files
     all_parquets = sorted(glob.glob(
         os.path.join(DATA_PATH, "**", "DailyTicket_Log_*.parquet"), recursive=True
     ))
