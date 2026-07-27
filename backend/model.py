@@ -434,9 +434,9 @@ class Model:
 
         holidays = self.generate_holidays(events_list)
 
-        # Auto-enable yearly seasonality ONLY if dataset has at least 365 days of history
+        # Auto-enable yearly seasonality ONLY if dataset has at least ~1 year (360+ days) of history
         date_span_days = (daily_counts["ds"].max() - daily_counts["ds"].min()).days
-        use_yearly_seasonality = date_span_days >= 365
+        use_yearly_seasonality = date_span_days >= 360
 
         # 4. Train Prophet
         try:
