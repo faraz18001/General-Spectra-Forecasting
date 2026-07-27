@@ -207,7 +207,7 @@ def main():
 
     # Step 2: Scan all parquet files
     all_parquets = sorted(glob.glob(
-        os.path.join(DATA_PATH, "**", "DailyTicket_Log_*.parquet"), recursive=True
+        os.path.join(DATA_PATH, "**", "*.parquet"), recursive=True
     ))
 
     files_to_process = []

@@ -6,7 +6,7 @@ from datetime import datetime
 from database import LocalSession, Branch, BranchHourlyProfile, get_or_create_branch
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.getenv("DATA_PATH", os.path.join(BASE_DIR, "..", "Data", "icp_data"))
+DATA_PATH = os.getenv("DATA_PATH", os.path.join(BASE_DIR, "..", "Data"))
 
 def compute_profiles():
     """
@@ -48,12 +48,17 @@ def compute_profiles():
     combined_df = combined_df.dropna(subset=["Branch Name", "Issue Time"])
     
     print("Parsing timestamps...")
-    # Parse standard 12-hour AM/PM time
-    combined_df['parsed_time'] = pd.to_datetime(combined_df['Issue Time'], format='%I:%M:%S %p', errors='coerce')
-    combined_df = combined_df.dropna(subset=['parsed_time'])
-    
-    # Extract hour component
-    combined_df['hour'] = combined_df['parsed_time'].dt.hour
+    def extract_hour(val):
+        if hasattr(val, 'hour') and not pd.isna(val):
+            return val.hour
+        t = pd.to_datetime(str(val), errors='coerce')
+        if pd.notna(t):
+            return t.hour
+        return None
+
+    combined_df['hour'] = combined_df['Issue Time'].apply(extract_hour)
+    combined_df = combined_df.dropna(subset=['hour'])
+    combined_df['hour'] = combined_df['hour'].astype(int)
     
     print("Calculating distributions per branch...")
     # Group by Branch and Hour

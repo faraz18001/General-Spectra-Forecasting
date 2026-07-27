@@ -231,27 +231,24 @@ class Model:
 
     def get_all_branches(self, years):
         """
-        Scan data files across specified years to find all unique branch names.
+        Scan data files across DATA_PATH to find all unique branch names.
         """
         branches = set()
 
         print("Scanning for branches...")
-        for year in years:
-            base_path = os.path.join(DATA_PATH, str(year))
-            if os.path.exists(base_path):
-                files = glob.glob(os.path.join(base_path, "*.parquet"))
-                for file_path in files:
-                    try:
-                        df = pd.read_parquet(file_path, columns=["Branch Name"])
-                        branches.update(df["Branch Name"].unique())
-                    except:
-                        pass
+        all_parquet_files = sorted(glob.glob(os.path.join(DATA_PATH, "**", "*.parquet"), recursive=True))
+        for file_path in all_parquet_files:
+            try:
+                df = pd.read_parquet(file_path, columns=["Branch Name"])
+                branches.update(df["Branch Name"].unique())
+            except:
+                pass
 
         return sorted(list(branches))
 
     def get_all_categories(self, years, branch_name=None, top_n=3):
         """
-        Get top N categories by ticket volume across specified years, optionally filtered by branch.
+        Get top N categories by ticket volume across DATA_PATH, optionally filtered by branch.
         """
         from collections import Counter
 
@@ -262,26 +259,23 @@ class Model:
         if branch_name:
             branch_list = [b.strip() for b in branch_name.split("|")]
 
-        for year in years:
-            base_path = os.path.join(DATA_PATH, str(year))
-            if os.path.exists(base_path):
-                files = glob.glob(os.path.join(base_path, "*.parquet"))
-                for file_path in files:
-                    try:
-                        cols = ["Category Name"]
-                        if branch_list:
-                            cols.append("Branch Name")
-                        df = pd.read_parquet(file_path, columns=cols)
-                        if branch_list:
-                            if len(branch_list) > 1:
-                                df = df[df["Branch Name"].isin(branch_list)]
-                            else:
-                                df = df[df["Branch Name"] == branch_list[0]]
-                        for cat, count in df["Category Name"].value_counts().items():
-                            if isinstance(cat, str):
-                                category_counts[cat] += count
-                    except:
-                        pass
+        all_parquet_files = sorted(glob.glob(os.path.join(DATA_PATH, "**", "*.parquet"), recursive=True))
+        for file_path in all_parquet_files:
+            try:
+                cols = ["Category Name"]
+                if branch_list:
+                    cols.append("Branch Name")
+                df = pd.read_parquet(file_path, columns=cols)
+                if branch_list:
+                    if len(branch_list) > 1:
+                        df = df[df["Branch Name"].isin(branch_list)]
+                    else:
+                        df = df[df["Branch Name"] == branch_list[0]]
+                for cat, count in df["Category Name"].value_counts().items():
+                    if isinstance(cat, str):
+                        category_counts[cat] += count
+            except:
+                pass
 
         # Return top N categories by ticket volume
         top_categories = [cat for cat, _ in category_counts.most_common(top_n)]
