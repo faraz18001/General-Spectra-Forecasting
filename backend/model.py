@@ -398,7 +398,7 @@ class Model:
                 return False
 
             print(
-                f"      ⚡ Cold-Start Triggered for {label}: Generating 365-day Heuristic Baseline Forecast ({num_days} day(s) of history)"
+                f"      Cold-Start Triggered for {label}: Generating 365-day Heuristic Baseline Forecast ({num_days} day(s) of history)"
             )
             
             # 1. Calculate Base Volume (Mean of available 1-6 days)
