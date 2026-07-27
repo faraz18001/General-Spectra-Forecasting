@@ -1,0 +1,7 @@
+Cycle,Training Span,Yearly Seasonality,Zero Predictions,Holdout Evaluated,Holdout Accuracy,Holdout WMAPE,R2 Score
+Cycle 1,119 days (120 active),Auto-Disabled (False),0,Jan 2026,52.12%,47.88%,-0.0034
+Cycle 2,364 days (365 active),Enabled (True),0,Jan 2026,92.56%,7.44%,0.9651
+Cycle 3,395 days (396 active),Enabled (True),0,Feb 2026,91.99%,8.01%,0.9671
+Cycle 4,423 days (424 active),Enabled (True),0,Mar 2026,91.89%,8.11%,0.9632
+Cycle 5,454 days (455 active),Enabled (True),0,Apr 2026,93.38%,6.62%,0.9694
+Cycle 6,484 days (485 active),Enabled (True),0,May 2026,92.98%,7.02%,0.9706

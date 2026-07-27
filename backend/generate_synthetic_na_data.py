@@ -9,13 +9,15 @@ from datetime import datetime, timedelta
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "..", "Data", "icp_data")
 YEAR_2025_DIR = os.path.join(DATA_DIR, "2025")
+YEAR_2026_DIR = os.path.join(DATA_DIR, "2026")
 DB_FILE = os.path.join(BASE_DIR, "forecast_app.db")
 EVENTS_FILE = os.path.join(BASE_DIR, "events_data.json")
 
-# 1. Clean existing icp_data and db
+# Clean existing icp_data and db
 if os.path.exists(DATA_DIR):
     shutil.rmtree(DATA_DIR)
 os.makedirs(YEAR_2025_DIR, exist_ok=True)
+os.makedirs(YEAR_2026_DIR, exist_ok=True)
 
 if os.path.exists(DB_FILE):
     os.remove(DB_FILE)
@@ -46,22 +48,44 @@ CATEGORIES = [
 
 OPERATORS = ["Op_JohnD", "Op_SarahM", "Op_AlexP", "Op_EmilyR", "Op_MichaelT", "Op_LisaK"]
 
-# Months to generate for 2025: (Month Name, Month Number, Days)
-MONTHS_2025 = [
-    ("Jan", 1, 31),
-    ("Feb", 2, 28),
-    ("Mar", 3, 31),
-    ("Apr", 4, 30),
+# Datasets to generate: (Year, Directory, Month Name, Month Number, Days)
+SCHEDULE = [
+    # Full 12 Months of 2025 (365 days) for Training
+    (2025, YEAR_2025_DIR, "Jan", 1, 31),
+    (2025, YEAR_2025_DIR, "Feb", 2, 28),
+    (2025, YEAR_2025_DIR, "Mar", 3, 31),
+    (2025, YEAR_2025_DIR, "Apr", 4, 30),
+    (2025, YEAR_2025_DIR, "May", 5, 31),
+    (2025, YEAR_2025_DIR, "Jun", 6, 30),
+    (2025, YEAR_2025_DIR, "Jul", 7, 31),
+    (2025, YEAR_2025_DIR, "Aug", 8, 31),
+    (2025, YEAR_2025_DIR, "Sep", 9, 30),
+    (2025, YEAR_2025_DIR, "Oct", 10, 31),
+    (2025, YEAR_2025_DIR, "Nov", 11, 30),
+    (2025, YEAR_2025_DIR, "Dec", 12, 31),
+    # Full 12 Months of 2026 Actuals / Holdout
+    (2026, YEAR_2026_DIR, "Jan", 1, 31),
+    (2026, YEAR_2026_DIR, "Feb", 2, 28),
+    (2026, YEAR_2026_DIR, "Mar", 3, 31),
+    (2026, YEAR_2026_DIR, "Apr", 4, 30),
+    (2026, YEAR_2026_DIR, "May", 5, 31),
+    (2026, YEAR_2026_DIR, "Jun", 6, 30),
+    (2026, YEAR_2026_DIR, "Jul", 7, 31),
+    (2026, YEAR_2026_DIR, "Aug", 8, 31),
+    (2026, YEAR_2026_DIR, "Sep", 9, 30),
+    (2026, YEAR_2026_DIR, "Oct", 10, 31),
+    (2026, YEAR_2026_DIR, "Nov", 11, 30),
+    (2026, YEAR_2026_DIR, "Dec", 12, 31),
 ]
 
 ticket_id_counter = 100000
 
-for mon_name, mon_num, days_in_mon in MONTHS_2025:
-    print(f"Generating synthetic NA data for {mon_name}-2025 ({days_in_mon} days)...")
+for yr, out_dir, mon_name, mon_num, days_in_mon in SCHEDULE:
+    print(f"Generating synthetic NA data for {mon_name}-{yr} ({days_in_mon} days)...")
     rows = []
     
     for day in range(1, days_in_mon + 1):
-        dt = datetime(2025, mon_num, day)
+        dt = datetime(yr, mon_num, day)
         is_weekend = dt.weekday() >= 5  # 5=Sat, 6=Sun
         
         # Day multiplier: weekends have lower volume
@@ -81,7 +105,7 @@ for mon_name, mon_num, days_in_mon in MONTHS_2025:
                 hour = random.randint(8, 16)
                 minute = random.randint(0, 59)
                 second = random.randint(0, 59)
-                issue_time_dt = datetime(2025, mon_num, day, hour, minute, second)
+                issue_time_dt = datetime(yr, mon_num, day, hour, minute, second)
                 issue_time_str = issue_time_dt.strftime("%I:%M:%S %p")
                 
                 wait_mins = random.randint(2, 35)
@@ -125,8 +149,8 @@ for mon_name, mon_num, days_in_mon in MONTHS_2025:
                 })
                 
     df = pd.DataFrame(rows)
-    out_file = os.path.join(YEAR_2025_DIR, f"DailyTicket_Log_{mon_name}-2025.parquet")
+    out_file = os.path.join(out_dir, f"DailyTicket_Log_{mon_name}-{yr}.parquet")
     df.to_parquet(out_file, index=False)
     print(f"  Saved {len(df)} records -> {out_file}")
 
-print("\nSuccessfully generated all 4 months of 2025 North America synthetic data!")
+print("\nSuccessfully generated 2025 training data AND 2026 actuals data!")
