@@ -391,7 +391,7 @@ class Model:
         daily_counts = self.generate_model_feedable_data(
             years, events_list, branch_name, category_name
         )
-        if daily_counts is None or len(daily_counts) < 14:
+        if daily_counts is None or len(daily_counts) < 7:
             print(
                 f"      Skipping {label}: Not enough data ({len(daily_counts) if daily_counts is not None else 0})"
             )
@@ -424,7 +424,7 @@ class Model:
         # Still keep the hard min to avoid near-zero days
         daily_counts = daily_counts[daily_counts["y"] >= 1]
 
-        if len(daily_counts) < 14:
+        if len(daily_counts) < 7:
             return False
 
         holidays = self.generate_holidays(events_list)
