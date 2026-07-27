@@ -16,6 +16,12 @@ pip install -r requirements.txt
 echo "Initializing Database (checking/creating tables)..."
 python database.py
 
+echo "Ingesting Data Files into Database..."
+python ingest_pipeline.py
+
+echo "Computing Hourly Traffic Profiles..."
+python compute_hourly_profiles.py
+
 echo "Triggering Model Training Pipeline..."
 python retrain_pipeline.py
 

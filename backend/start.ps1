@@ -22,6 +22,12 @@ pip install -r requirements.txt
 Write-Host "Initializing Database (checking/creating tables)..." -ForegroundColor Cyan
 python database.py
 
+Write-Host "Ingesting Data Files into Database..." -ForegroundColor Cyan
+python ingest_pipeline.py
+
+Write-Host "Computing Hourly Traffic Profiles..." -ForegroundColor Cyan
+python compute_hourly_profiles.py
+
 Write-Host "Triggering Model Training Pipeline..." -ForegroundColor Cyan
 python retrain_pipeline.py
 
