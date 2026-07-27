@@ -10,8 +10,12 @@ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
 Set-Location -Path $PSScriptRoot
 Write-Host "Working directory set to: $PSScriptRoot" -ForegroundColor Yellow
 
-Write-Host "Creating Python virtual environment..." -ForegroundColor Cyan
-python -m venv venv
+if (-not (Test-Path -Path "venv")) {
+    Write-Host "Creating Python virtual environment..." -ForegroundColor Cyan
+    python -m venv venv
+} else {
+    Write-Host "Virtual environment already exists." -ForegroundColor Green
+}
 
 Write-Host "Activating virtual environment..." -ForegroundColor Cyan
 .\venv\Scripts\Activate.ps1
