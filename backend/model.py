@@ -419,10 +419,10 @@ class Model:
         lower_bound = Q1 - (1.5 * IQR)
 
         # Filter
-        daily_counts = daily_counts[daily_counts["residual"] > lower_bound]
+        daily_counts = daily_counts[daily_counts["residual"] >= lower_bound]
 
         # Still keep the hard min to avoid near-zero days
-        daily_counts = daily_counts[daily_counts["y"] >= 10]
+        daily_counts = daily_counts[daily_counts["y"] >= 1]
 
         if len(daily_counts) < 14:
             return False
