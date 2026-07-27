@@ -20,7 +20,8 @@ from database import (
     save_cv_metrics,
 )
 
-DATA_PATH = os.getenv("DATA_PATH", os.path.join("..", "Data", "icp_data"))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.getenv("DATA_PATH", os.path.join(BASE_DIR, "..", "Data"))
 
 
 class Model:
@@ -289,21 +290,21 @@ class Model:
 
     def generate_model_feedable_data(self, years, events_list, branch_name=None, category_name=None):
         """
-        Load and aggregate daily actuals across multiple years for a branch and optional category.
+        Load and aggregate daily actuals across all available parquet files for a branch and optional category.
+        Scans all parquet files recursively inside DATA_PATH (supporting both flat and nested folder structures).
         """
         all_data = []
 
-        for year in years:
-            base_path = os.path.join(DATA_PATH, str(year))
-            if os.path.exists(base_path):
-                files = glob.glob(os.path.join(base_path, "*.parquet"))
-                for file_path in sorted(files):
-                    b_filter = branch_name if branch_name != "ALL" else None
-                    month_data = self.load_parquet_data(
-                        file_path, b_filter, category_name
-                    )
-                    if month_data is not None and not month_data.empty:
-                        all_data.append(month_data)
+        # Find all parquet files recursively in DATA_PATH
+        all_parquet_files = sorted(glob.glob(os.path.join(DATA_PATH, "**", "*.parquet"), recursive=True))
+
+        for file_path in all_parquet_files:
+            b_filter = branch_name if branch_name != "ALL" else None
+            month_data = self.load_parquet_data(
+                file_path, b_filter, category_name
+            )
+            if month_data is not None and not month_data.empty:
+                all_data.append(month_data)
 
         if not all_data:
             return None

@@ -32,16 +32,19 @@ def main():
             print(f"Error loading events: {e}")
             events_list = []
         
-        # Dynamic rolling 3-year window: use last 3 years that actually have data
+        # Dynamic rolling window: check for parquet files recursively in DATA_PATH
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-        DATA_PATH = os.getenv("DATA_PATH", os.path.join(BASE_DIR, "..", "Data", "icp_data"))
-        current_year = datetime.now().year
-        candidate_years = [str(current_year - 2), str(current_year - 1), str(current_year)]
-        years = [y for y in candidate_years if os.path.isdir(os.path.join(DATA_PATH, y))]
-        if not years:
-            print("No data folders found for rolling window. Aborting.")
+        DATA_PATH = os.getenv("DATA_PATH", os.path.join(BASE_DIR, "..", "Data"))
+        
+        import glob
+        all_parquets = glob.glob(os.path.join(DATA_PATH, "**", "*.parquet"), recursive=True)
+        if not all_parquets:
+            print(f"No parquet data files found in {DATA_PATH}. Aborting.")
             return
-        print(f"Training on rolling 3-year window: {years}")
+            
+        current_year = datetime.now().year
+        years = [str(current_year - 2), str(current_year - 1), str(current_year)]
+        print(f"Training on dataset in {DATA_PATH} ({len(all_parquets)} parquet files found)...")
         
         # Initialize forecasting model
         predictor = Model()
