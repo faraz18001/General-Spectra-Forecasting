@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import warnings
 import time
@@ -392,10 +392,59 @@ class Model:
             years, events_list, branch_name, category_name
         )
         if daily_counts is None or len(daily_counts) < 7:
+            num_days = len(daily_counts) if daily_counts is not None else 0
+            if num_days == 0:
+                print(f"      Skipping {label}: Zero data records available.")
+                return False
+
             print(
-                f"      Skipping {label}: Not enough data ({len(daily_counts) if daily_counts is not None else 0})"
+                f"      ⚡ Cold-Start Triggered for {label}: Generating 365-day Heuristic Baseline Forecast ({num_days} day(s) of history)"
             )
-            return False
+            
+            # 1. Calculate Base Volume (Mean of available 1-6 days)
+            base_volume = float(daily_counts["y"].mean()) if not daily_counts.empty else 50.0
+            last_date = daily_counts["ds"].max().date()
+            
+            # 2. Generate 365 Future Dates with Standard Operational Weekly Ratios (Weekday = 1.0, Weekend = 0.20)
+            forecast_rows = []
+            for i in range(1, prediction_days + 1):
+                f_date = last_date + timedelta(days=i)
+                day_name = f_date.strftime("%A")
+                is_weekend = f_date.weekday() >= 5
+                ratio = 0.20 if is_weekend else 1.0
+                
+                pred_val = int(round(base_volume * ratio))
+                low_val = int(round(pred_val * 0.85))
+                upp_val = int(round(pred_val * 1.15))
+                
+                forecast_rows.append(
+                    {
+                        "date": f_date,
+                        "day_of_week": day_name,
+                        "predicted": max(1, pred_val),
+                        "lower_bound": max(1, low_val),
+                        "upper_bound": max(1, upp_val),
+                    }
+                )
+                
+            # 3. Save Cold-Start Forecasts to Database
+            if training_run_id and db_branch_id is not None:
+                try:
+                    save_forecasts_to_db(
+                        training_run_id, db_branch_id, db_category_id, forecast_rows
+                    )
+                    actual_rows = [
+                        {"date": r["ds"].date(), "actual_count": int(r["y"])}
+                        for _, r in daily_counts.iterrows()
+                    ]
+                    save_actual_traffic(db_branch_id, db_category_id, actual_rows)
+                    print(
+                        f"      ✓ Cold-Start forecast ({prediction_days} days) successfully saved to DB for {label}."
+                    )
+                except Exception as e:
+                    print(f"      Error saving cold-start forecast: {e}")
+                    
+            return True
 
         # Apply robust outlier detection (IQR Method)
         daily_counts = daily_counts.sort_values("ds")
