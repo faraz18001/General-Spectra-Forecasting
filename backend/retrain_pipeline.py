@@ -34,7 +34,7 @@ def main():
         
         # Dynamic rolling window: check for parquet files recursively in DATA_PATH
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-        DATA_PATH = os.getenv("DATA_PATH", os.path.join(BASE_DIR, "..", "Data"))
+        DATA_PATH = os.path.join(BASE_DIR, "..", "Data")
         
         import glob
         all_parquets = glob.glob(os.path.join(DATA_PATH, "**", "*.parquet"), recursive=True)

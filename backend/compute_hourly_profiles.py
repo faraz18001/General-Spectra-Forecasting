@@ -6,7 +6,7 @@ from datetime import datetime
 from database import LocalSession, Branch, BranchHourlyProfile, get_or_create_branch
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.getenv("DATA_PATH", os.path.join(BASE_DIR, "..", "Data"))
+DATA_PATH = os.path.join(BASE_DIR, "..", "Data")
 
 def compute_profiles():
     """

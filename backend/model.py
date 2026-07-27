@@ -21,7 +21,7 @@ from database import (
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.getenv("DATA_PATH", os.path.join(BASE_DIR, "..", "Data"))
+DATA_PATH = os.path.join(BASE_DIR, "..", "Data")
 
 
 class Model:

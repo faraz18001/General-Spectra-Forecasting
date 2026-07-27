@@ -13,7 +13,7 @@ from database import (
 
 # Use absolute path or standard repo path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.getenv("DATA_PATH", os.path.join(BASE_DIR, "..", "Data"))
+DATA_PATH = os.path.join(BASE_DIR, "..", "Data")
 
 
 def is_already_ingested(filename):
