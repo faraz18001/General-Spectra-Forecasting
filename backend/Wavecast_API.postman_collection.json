@@ -1,0 +1,462 @@
+{
+  "info": {
+    "_postman_id": "wavecast-forecasting-api-v1",
+    "name": "Wavecast Forecasting Service API",
+    "description": "Complete Postman API Collection for Wavecast Volume Forecasting & Simulation Engine.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8079",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Login User / Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"adminpassword\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Host",
+                "value": "localhost"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Branches & Categories",
+      "item": [
+        {
+          "name": "Get All Branches",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Host",
+                "value": "localhost"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/branches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "branches"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Branch Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Host",
+                "value": "localhost"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories?branch_name=Brampton",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ],
+              "query": [
+                {
+                  "key": "branch_name",
+                  "value": "Brampton"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Forecasts & Predictions",
+      "item": [
+        {
+          "name": "Get Monthly Forecast Predictions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Host",
+                "value": "localhost"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/forecast-by-month?month=8&year=2026&branch_name=Brampton",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "forecast-by-month"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "8"
+                },
+                {
+                  "key": "year",
+                  "value": "2026"
+                },
+                {
+                  "key": "branch_name",
+                  "value": "Brampton"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Weekly Forecast Pattern",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Host",
+                "value": "localhost"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/weekly-pattern?month=8&year=2026&branch_name=Brampton",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "weekly-pattern"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "8"
+                },
+                {
+                  "key": "year",
+                  "value": "2026"
+                },
+                {
+                  "key": "branch_name",
+                  "value": "Brampton"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Download Forecast Excel Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Host",
+                "value": "localhost"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/forecast/download-excel?month=8&year=2026&branch_name=Brampton",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "forecast",
+                "download-excel"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "8"
+                },
+                {
+                  "key": "year",
+                  "value": "2026"
+                },
+                {
+                  "key": "branch_name",
+                  "value": "Brampton"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Training Run Metadata",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Host",
+                "value": "localhost"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/training-info",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "training-info"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Actual Traffic & Validation",
+      "item": [
+        {
+          "name": "Get Historical Actual Traffic",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Host",
+                "value": "localhost"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/historical?branch_name=Brampton",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "historical"
+              ],
+              "query": [
+                {
+                  "key": "branch_name",
+                  "value": "Brampton"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Branch Summary Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Host",
+                "value": "localhost"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/stats?branch_name=Brampton",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "branch_name",
+                  "value": "Brampton"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Validation Comparison (July 2026)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Host",
+                "value": "localhost"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/validation?month=7&year=2026&branch_name=Brampton",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "validation"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "7"
+                },
+                {
+                  "key": "year",
+                  "value": "2026"
+                },
+                {
+                  "key": "branch_name",
+                  "value": "Brampton"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Validation Comparison (August 2026)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Host",
+                "value": "localhost"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/validation?month=8&year=2026&branch_name=Brampton",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "validation"
+              ],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "8"
+                },
+                {
+                  "key": "year",
+                  "value": "2026"
+                },
+                {
+                  "key": "branch_name",
+                  "value": "Brampton"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Model Training",
+      "item": [
+        {
+          "name": "Trigger Model Retraining (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Host",
+                "value": "localhost"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prediction_days\": 365,\n  \"confidence\": 0.95,\n  \"branch_name\": \"Brampton\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/train",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "train"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Calendar Events",
+      "item": [
+        {
+          "name": "Get Special Calendar Events",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Host",
+                "value": "localhost"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
