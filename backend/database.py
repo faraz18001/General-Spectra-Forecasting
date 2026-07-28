@@ -288,6 +288,7 @@ class IngestedFile(Base):
     filename = Column(String(512), unique=True, nullable=False)  # Basename of parquet file
     ingested_at = Column(DateTime, default=datetime.utcnow)
     row_count = Column(Integer, nullable=True)
+    file_mtime = Column(Float, nullable=True)  # File modification timestamp on disk
 
 
 # Create all tables

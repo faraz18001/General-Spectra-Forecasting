@@ -5,32 +5,53 @@ from datetime import datetime
 from database import (
     LocalSession,
     IngestedFile,
+    ActualTraffic,
     get_or_create_branch,
     get_or_create_category,
     save_actual_traffic,
     init_db,
 )
+from sqlalchemy import func
 
 # Use absolute path or standard repo path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(BASE_DIR, "..", "Data")
 
 
-def is_already_ingested(filename):
-    """Check if a parquet file has already been ingested into the database."""
+def is_already_ingested(filename, file_mtime=None):
+    """
+    Check if a file has already been ingested into the database.
+    If file_mtime is provided, checks whether the file on disk has been updated
+    since its last ingestion. Returns False if the file is new OR has been modified/appended.
+    """
     db = LocalSession()
     try:
-        return db.query(IngestedFile).filter(IngestedFile.filename == filename).first() is not None
+        record = db.query(IngestedFile).filter(IngestedFile.filename == filename).first()
+        if not record:
+            return False
+        if file_mtime is not None and record.file_mtime is not None:
+            # Return True (already ingested) ONLY if mtime matches
+            return record.file_mtime == file_mtime
+        return True
     finally:
         db.close()
 
 
-def mark_as_ingested(filename, row_count):
-    """Record a parquet file as ingested to prevent duplicate processing."""
+def mark_as_ingested(filename, row_count, file_mtime=None):
+    """
+    Record or update a file's ingestion status, row count, and modification timestamp.
+    """
     db = LocalSession()
     try:
-        record = IngestedFile(filename=filename, row_count=row_count)
-        db.add(record)
+        record = db.query(IngestedFile).filter(IngestedFile.filename == filename).first()
+        if record:
+            record.row_count = row_count
+            if file_mtime is not None:
+                record.file_mtime = file_mtime
+            record.ingested_at = datetime.utcnow()
+        else:
+            record = IngestedFile(filename=filename, row_count=row_count, file_mtime=file_mtime)
+            db.add(record)
         db.commit()
     except Exception as e:
         db.rollback()
@@ -44,7 +65,8 @@ def process_parquet(file_path):
     Reads a single DailyTicket_Log parquet file and inserts daily actual
     traffic counts into the database per branch, category, and globally.
 
-    Also extracts and stores the Region for each branch.
+    Filters out already-ingested dates so that appending new days into an existing
+    file (e.g. Daily Ticket Log July 2026.csv) safely ingests only the new days.
 
     Args:
         file_path (str): Absolute path to the parquet file.
@@ -70,8 +92,24 @@ def process_parquet(file_path):
     # Clean data
     df[date_col] = pd.to_datetime(df[date_col], errors="coerce").dt.normalize()
     df = df.dropna(subset=[date_col, "Branch Name", "Category Name"])
-    row_count = len(df)
-    print(f"  Rows loaded: {row_count}")
+    raw_row_count = len(df)
+    print(f"  Total file rows loaded: {raw_row_count}")
+
+    # Incremental Filtering: Filter out dates already ingested into actual_traffic
+    db_check = LocalSession()
+    try:
+        max_db_date = db_check.query(func.max(ActualTraffic.date)).scalar()
+        if max_db_date is not None:
+            df = df[df[date_col].dt.date > max_db_date]
+            print(f"  Incremental Filter: Kept {len(df)} new rows (newer than last ingested date {max_db_date})")
+    except Exception as e:
+        print(f"  Warning during incremental date filter check: {e}")
+    finally:
+        db_check.close()
+
+    if df.empty:
+        print("  No new daily records to ingest (all dates in file are already in database). Skipping.")
+        return raw_row_count
 
     # Build branch → region map from Region column
     branch_region_map = {}
@@ -85,7 +123,7 @@ def process_parquet(file_path):
                 branch_region_map[b_key] = reg_val
 
     # Compute daily actuals per branch + category
-    print(f"  Calculating daily actuals...")
+    print(f"  Calculating daily actuals for new dates...")
     daily_counts = df.groupby(["Branch Name", "Category Name", date_col]).size().reset_index(name="actual_count")
 
     db = LocalSession()
@@ -136,7 +174,7 @@ def process_parquet(file_path):
         ]
         save_actual_traffic(all_branch_id, 0, all_rows)
 
-        print(f"  Successfully inserted actuals into database.")
+        print(f"  Successfully inserted new actuals into database.")
 
     except Exception as e:
         print(f"  Error inserting actual data: {e}")
@@ -144,13 +182,13 @@ def process_parquet(file_path):
     finally:
         db.close()
 
-    return row_count
+    return raw_row_count
 
 
 def convert_csv_to_parquet(csv_path):
     """
     Auto-converts an incoming CSV file (.csv) to .parquet in the same directory.
-    Skips conversion if the target .parquet file already exists and is newer.
+    Updates target .parquet file if the CSV has a newer modification time.
 
     Args:
         csv_path (str): Absolute path to the CSV file.
@@ -161,7 +199,7 @@ def convert_csv_to_parquet(csv_path):
     base, _ = os.path.splitext(csv_path)
     parquet_path = base + ".parquet"
 
-    # If parquet already exists and is mtime-up-to-date, reuse it
+    # If parquet exists and is up-to-date with CSV mtime, reuse it
     if os.path.exists(parquet_path):
         if os.path.getmtime(parquet_path) >= os.path.getmtime(csv_path):
             return parquet_path
@@ -180,7 +218,7 @@ def convert_csv_to_parquet(csv_path):
 def convert_excel_to_parquet(excel_path):
     """
     Auto-converts an incoming Excel file (.xlsx, .xls) to .parquet in the same directory.
-    Skips conversion if the target .parquet file already exists and is newer.
+    Updates target .parquet file if the Excel file has a newer modification time.
 
     Args:
         excel_path (str): Absolute path to the Excel file.
@@ -191,7 +229,6 @@ def convert_excel_to_parquet(excel_path):
     base, _ = os.path.splitext(excel_path)
     parquet_path = base + ".parquet"
 
-    # If parquet already exists and is mtime-up-to-date, reuse it
     if os.path.exists(parquet_path):
         if os.path.getmtime(parquet_path) >= os.path.getmtime(excel_path):
             return parquet_path
@@ -211,9 +248,9 @@ def main():
     """
     Main entry point. 
     1. Scans all CSV files (.csv) and Excel files (.xlsx, .xls) in DATA_PATH and auto-converts them to .parquet.
-    2. Scans all .parquet files, checks ingested_files table, and processes new ones.
+    2. Scans all .parquet files, checks ingested_files table & modification timestamps (mtime), and processes new/updated files.
     
-    Supports CSV drops, Excel drops, and direct Parquet drops seamlessly.
+    Supports appended CSV drops, Excel drops, and direct Parquet drops seamlessly.
     """
     print(f"Starting data ingestion pipeline at {datetime.now()}")
 
@@ -254,15 +291,16 @@ def main():
     files_to_process = []
     for fp in all_parquets:
         basename = os.path.basename(fp)
-        if not is_already_ingested(basename):
-            files_to_process.append(fp)
+        file_mtime = os.path.getmtime(fp)
+        if not is_already_ingested(basename, file_mtime):
+            files_to_process.append((fp, file_mtime))
 
-    print(f"Found {len(all_parquets)} total parquets. {len(files_to_process)} new to ingest.")
+    print(f"Found {len(all_parquets)} total parquets. {len(files_to_process)} new or updated to ingest.")
 
-    for fp in files_to_process:
+    for fp, mtime in files_to_process:
         row_count = process_parquet(fp)
         if row_count > 0:
-            mark_as_ingested(os.path.basename(fp), row_count)
+            mark_as_ingested(os.path.basename(fp), row_count, mtime)
 
     print(f"\nFinished data ingestion pipeline at {datetime.now()}")
 
