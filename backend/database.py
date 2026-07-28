@@ -303,6 +303,13 @@ def init_db():
         print("Database already exists!")
 
     Base.metadata.create_all(bind=engine)
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE ingested_files ADD file_mtime FLOAT;"))
+            conn.commit()
+    except Exception:
+        pass
     print("Database initialized!")
 
 
