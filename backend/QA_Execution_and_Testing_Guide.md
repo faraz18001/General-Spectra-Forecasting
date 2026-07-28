@@ -126,10 +126,14 @@ Once you are inside `PS C:\forecasting-service-api\backend>`, execute **one sing
 
 ---
 
-## 5. How to Run Subsequent / Next Training Cycles (Adding New Months)
+## 5. How to Run Daily Ingestions & Next Training Cycles
 
-When testing continuous learning as new months of data arrive:
+### Workflow Rule:
+* **First Run (Cycle 1 - Day 1 Cold-Start)**: Execute `.\start.ps1` (or `./start.sh`) to initialize the database, ingest Day 1 data, train the initial Cold-Start baseline model, and start the API server on port `8079`.
+* **Daily Actual Ingestions (Days 2 to 30)**: As QA appends new daily ticket rows to the CSV file each day, run `python ingest_pipeline.py` (or `run_ingest.bat`) to ingest the daily actuals into SQL Server. You do **not** need to retrain models daily.
+* **Full Month Retraining (After 30/31 Days Ingested)**: Once the full month of daily actuals is complete in SQL Server, run `.\start.ps1` (or `./start.sh`) to trigger full Prophet model retraining on cumulative data.
 
+### When Adding New Month Files:
 1. Copy the new month's CSV file alongside your previous files in `C:\forecasting-service-api\Data\` (e.g. `Daily Ticket Log August 2026.csv`).
 2. If the backend server is currently running in PowerShell, press **`Ctrl + C`** to stop the server.
 3. In PowerShell (`PS C:\forecasting-service-api\backend>`), run:
@@ -176,12 +180,12 @@ The following ground-zero benchmark results demonstrate how model accuracy and s
 
 ## 8. Verification & API Testing (Windows)
 
-Once PowerShell prints `Uvicorn running on http://0.0.0.0:8000`, QA can verify predictions via browser:
+Once PowerShell prints `Uvicorn running on http://0.0.0.0:8079`, QA can verify predictions via browser:
 
-1. **Swagger UI Docs**: Open `http://localhost:8000/docs` in Google Chrome or Microsoft Edge.
+1. **Swagger UI Docs**: Open `http://localhost:8079/docs` in Google Chrome or Microsoft Edge.
 2. **Monthly Forecast API**:
-   `http://localhost:8000/api/forecast-by-month?month=8&year=2026&branch_name=Brampton`
+   `http://localhost:8079/api/forecast-by-month?month=8&year=2026&branch_name=Brampton`
 3. **Branch Categories API**:
-   `http://localhost:8000/api/categories?branch_name=Brampton`
+   `http://localhost:8079/api/categories?branch_name=Brampton`
 4. **Historical Actuals API**:
-   `http://localhost:8000/api/historical?branch_name=Brampton`
+   `http://localhost:8079/api/historical?branch_name=Brampton`
