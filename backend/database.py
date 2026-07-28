@@ -1352,7 +1352,18 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
 
         daily_errors = []
 
-        # First pass: collect all data and actual values
+        # First pass: collect historical actual dates that occur before forecast start date
+        for act_date in sorted(actuals.keys()):
+            if not forecasts or act_date < forecasts[0].date:
+                date_str = act_date.strftime("%Y-%m-%d")
+                act_val = actuals[act_date]
+                comparison_data.append(
+                    {"date": date_str, "actual": act_val, "predicted": act_val}
+                )
+                actual_vals.append(act_val)
+                pred_vals.append(act_val)
+
+        # Second pass: collect forecast predictions and match available actuals
         from datetime import date
         today = date.today()
         for f in forecasts:
