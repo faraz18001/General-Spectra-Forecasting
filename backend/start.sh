@@ -29,5 +29,5 @@ python compute_hourly_profiles.py
 echo "Triggering Model Training Pipeline..."
 python retrain_pipeline.py
 
-echo "Starting FastAPI Server..."
-uvicorn api:app --host 0.0.0.0 --port 8000
+echo "Starting FastAPI Server on port 8079..."
+uvicorn api:app --host 0.0.0.0 --port 8079

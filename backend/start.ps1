@@ -35,5 +35,5 @@ python compute_hourly_profiles.py
 Write-Host "Triggering Model Training Pipeline..." -ForegroundColor Cyan
 python retrain_pipeline.py
 
-Write-Host "Starting FastAPI Server..." -ForegroundColor Green
-uvicorn api:app --host 0.0.0.0 --port 8000
+Write-Host "Starting FastAPI Server on port 8079..."
+uvicorn api:app --host 0.0.0.0 --port 8079

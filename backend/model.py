@@ -360,6 +360,7 @@ class Model:
         training_run_id=None,
         db_branch_id=None,
         db_category_id=0,
+        global_last_date=None,
     ):
         """
         Internal helper to preprocess data, train a Prophet model, generate forecasts, and save results.
@@ -403,7 +404,7 @@ class Model:
             
             # 1. Calculate Base Volume (Mean of available 1-6 days)
             base_volume = float(daily_counts["y"].mean()) if not daily_counts.empty else 50.0
-            last_date = daily_counts["ds"].max().date()
+            last_date = global_last_date if global_last_date is not None else daily_counts["ds"].max().date()
             
             # 2. Generate 365 Future Dates with Standard Operational Weekly Ratios (Weekday = 1.0, Weekend = 0.20)
             forecast_rows = []
@@ -532,17 +533,20 @@ class Model:
             if training_run_id and db_branch_id is not None:
                 try:
                     future_data = fcst
+                    cutoff_date = global_last_date if global_last_date is not None else daily_counts["ds"].max().date()
                     forecast_rows = []
                     for _, row in future_data.iterrows():
-                        forecast_rows.append(
-                            {
-                                "date": row["ds"].date(),
-                                "day_of_week": row["ds"].strftime("%A"),
-                                "predicted": max(0, int(round(row["yhat"]))),
-                                "lower_bound": max(0, int(round(row["yhat_lower"]))),
-                                "upper_bound": int(round(row["yhat_upper"])),
-                            }
-                        )
+                        r_date = row["ds"].date()
+                        if r_date > cutoff_date:
+                            forecast_rows.append(
+                                {
+                                    "date": r_date,
+                                    "day_of_week": row["ds"].strftime("%A"),
+                                    "predicted": max(0, int(round(row["yhat"]))),
+                                    "lower_bound": max(0, int(round(row["yhat_lower"]))),
+                                    "upper_bound": int(round(row["yhat_upper"])),
+                                }
+                            )
                     save_forecasts_to_db(
                         training_run_id, db_branch_id, db_category_id, forecast_rows
                     )
@@ -591,6 +595,22 @@ class Model:
             print(f"      Error training {branch_name}: {e}")
             return False
 
+    def get_global_max_date(self):
+        """Find the maximum actual date across all parquet files in DATA_PATH."""
+        all_parquet_files = sorted(glob.glob(os.path.join(DATA_PATH, "**", "*.parquet"), recursive=True))
+        max_d = None
+        for fp in all_parquet_files:
+            try:
+                df = pd.read_parquet(fp)
+                date_col = "Ticket Issue Date" if "Ticket Issue Date" in df.columns else "Issue Date"
+                if date_col in df.columns:
+                    cur_max = pd.to_datetime(df[date_col], errors="coerce").max().date()
+                    if max_d is None or cur_max > max_d:
+                        max_d = cur_max
+            except:
+                pass
+        return max_d
+
     def train_model(
         self,
         years,
@@ -625,6 +645,9 @@ class Model:
         self.models = {}
         self.forecasts = {}
         self.daily_counts_map = {}
+
+        global_last_date = self.get_global_max_date()
+        print(f"Global dataset max date: {global_last_date}")
 
         self.spain_holidays = self.generate_holidays(
             events_list
@@ -677,6 +700,7 @@ class Model:
                 training_run_id=run_id,
                 db_branch_id=db_bid,
                 db_category_id=0,
+                global_last_date=global_last_date,
             )
 
             # Also train all categories within this branch
@@ -697,6 +721,7 @@ class Model:
                     training_run_id=run_id,
                     db_branch_id=db_bid,
                     db_category_id=db_cid,
+                    global_last_date=global_last_date,
                 ):
                     cat_count += 1
 
@@ -719,6 +744,7 @@ class Model:
                 training_run_id=run_id,
                 db_branch_id=db_all_bid,
                 db_category_id=0,
+                global_last_date=global_last_date,
             )
 
             # 2. Find and Train ALL Individual Branches + their categories
@@ -756,6 +782,7 @@ class Model:
                     training_run_id=run_id,
                     db_branch_id=db_bid,
                     db_category_id=0,
+                    global_last_date=global_last_date,
                 ):
                     count += 1
 
