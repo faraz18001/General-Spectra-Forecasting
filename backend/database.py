@@ -1167,6 +1167,15 @@ def get_weekly_pattern_from_db(branch_id, category_id=0, month=None, year=None):
         ]
 
         results = query.all()
+        if not results and category_id != -1:
+            # Fallback: query overall training run forecast horizon for this branch/category
+            fallback_query = db.query(DailyForecast).filter(
+                DailyForecast.training_run_id == latest_run.id,
+                DailyForecast.branch_id == branch_id,
+                DailyForecast.category_id == category_id,
+            )
+            results = fallback_query.all()
+
         if not results:
             return [{"day": d, "average": 0} for d in day_order]
 
