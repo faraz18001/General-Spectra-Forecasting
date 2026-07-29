@@ -1,16 +1,14 @@
 from database import LocalSession, engine, Branch, Category, ActualTraffic, DailyForecast, IngestedFile, TrainingRun, Event
-from sqlalchemy import text, func
-import pandas as pd
+from sqlalchemy import func
 
 def run_db_audit():
     db = LocalSession()
     print('=====================================================================')
-    print('          WAVECAST FORECASTING ENGINE — DATABASE AUDIT REPORT        ')
+    print('          WAVECAST FORECASTING ENGINE -- DATABASE AUDIT REPORT        ')
     print('=====================================================================')
     
-    # 1. Table Counts
-    print('
-[1. TABLE ROW COUNTS]')
+    print('')
+    print('[1. TABLE ROW COUNTS]')
     counts = {
         'branches': db.query(Branch).count(),
         'categories': db.query(Category).count(),
@@ -23,16 +21,14 @@ def run_db_audit():
     for tbl, cnt in counts.items():
         print(f'  - {tbl:<20}: {cnt:,} rows')
         
-    # 2. Ingested Files
-    print('
-[2. INGESTED FILES TRACKING]')
+    print('')
+    print('[2. INGESTED FILES TRACKING]')
     files = db.query(IngestedFile).order_by(IngestedFile.ingested_at.desc()).all()
     for f in files:
         print(f'  - File #{f.id}: {f.filename:<35} | Rows: {f.row_count:<6} | Ingested: {f.ingested_at}')
         
-    # 3. Training Runs
-    print('
-[3. TRAINING RUNS HISTORY]')
+    print('')
+    print('[3. TRAINING RUNS HISTORY]')
     runs = db.query(TrainingRun).order_by(TrainingRun.id.desc()).all()
     for r in runs:
         min_d = db.query(func.min(DailyForecast.date)).filter(DailyForecast.training_run_id == r.id).scalar()
@@ -40,9 +36,8 @@ def run_db_audit():
         fcst_cnt = db.query(DailyForecast).filter(DailyForecast.training_run_id == r.id).count()
         print(f'  - Run #{r.id}: Status={r.status:<7} | Horizon={min_d} --> {max_d} ({fcst_cnt:,} rows)')
         
-    # 4. Actual Traffic Range
-    print('
-[4. GROUND-TRUTH ACTUAL TRAFFIC SUMMARY]')
+    print('')
+    print('[4. GROUND-TRUTH ACTUAL TRAFFIC SUMMARY]')
     branches = db.query(Branch).all()
     for b in branches:
         act_cnt = db.query(ActualTraffic).filter(ActualTraffic.branch_id == b.id, ActualTraffic.category_id == 0).count()
@@ -51,8 +46,8 @@ def run_db_audit():
         tot_vol = db.query(func.sum(ActualTraffic.actual_count)).filter(ActualTraffic.branch_id == b.id, ActualTraffic.category_id == 0).scalar() or 0
         print(f'  - Branch: {b.name:<15} | Days: {act_cnt:<3} | Date Span: {min_act} --> {max_act} | Total Tickets: {tot_vol:,}')
         
-    print('
-=====================================================================')
+    print('')
+    print('=====================================================================')
     db.close()
 
 if __name__ == '__main__':
