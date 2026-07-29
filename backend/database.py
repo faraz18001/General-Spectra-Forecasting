@@ -1434,15 +1434,22 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
                 },
             }
 
-        rmse = float(np.sqrt(np.mean((actual_vals - pred_vals) ** 2)))
+        act_arr = np.array(actual_vals, dtype=float)
+        pred_arr = np.array(pred_vals, dtype=float)
 
-        if sum(valid_actuals) > 0:
+        mae = float(np.mean(np.abs(act_arr - pred_arr))) if len(act_arr) > 0 else 0.0
+        rmse = float(np.sqrt(np.mean((act_arr - pred_arr) ** 2))) if len(act_arr) > 0 else 0.0
+
+        if len(valid_actuals) > 0 and sum(valid_actuals) > 0:
             wmape = sum(abs(a - p) for a, p in zip(valid_actuals, valid_preds)) / sum(valid_actuals)
+            mape = float(wmape * 100)
+        elif len(act_arr) > 0 and sum(act_arr) > 0:
+            wmape = sum(abs(a - p) for a, p in zip(act_arr, pred_arr)) / sum(act_arr)
             mape = float(wmape * 100)
         else:
             mape = 0.0
             
-        accuracy = 100 - mape
+        accuracy = max(0.0, round(100.0 - mape, 2))
 
         return {
             "metrics": {
@@ -1454,10 +1461,12 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
             },
             "comparisonData": comparison_data,
             "totals": {
-                "actualTotal": int(np.sum(actual_vals)),
-                "predictedTotal": int(np.sum(pred_vals)),
-                "difference": int(np.sum(pred_vals) - np.sum(actual_vals)),
+                "actualTotal": int(sum(actual_vals)),
+                "predictedTotal": int(sum(pred_vals)),
+                "difference": int(sum(pred_vals) - sum(actual_vals)),
             },
+            "month": f"{year}-{month}" if month and year else "ALL",
+            "year": year or 0,
         }
     finally:
         db.close()
