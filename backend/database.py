@@ -1350,18 +1350,17 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
                             eid_dates.add(current.strftime("%Y-%m-%d"))
                             current += pd.Timedelta(days=1)
 
-        daily_errors = []
-
-        # First pass: collect historical actual dates that occur before forecast start date
+        # First pass: collect historical actual dates that occur before forecast start date (in-sample training history)
         for act_date in sorted(actuals.keys()):
             if not forecasts or act_date < forecasts[0].date:
                 date_str = act_date.strftime("%Y-%m-%d")
                 act_val = actuals[act_date]
-                comparison_data.append(
-                    {"date": date_str, "actual": act_val, "predicted": act_val}
-                )
-                actual_vals.append(act_val)
-                pred_vals.append(act_val)
+                comparison_data.append({
+                    "date": date_str,
+                    "actual": act_val,
+                    "predicted": act_val,
+                    "type": "in_sample_history"
+                })
 
         # Second pass: collect forecast predictions and match available actuals
         from datetime import date
@@ -1369,32 +1368,39 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
         for f in forecasts:
             date_str = f.date.strftime("%Y-%m-%d")
             predicted = f.predicted
-            # If we don't have actuals for this day, actual is None
             actual = actuals.get(f.date)
             
-            # For the frontend chart, we want the line to dip to 0 on weekends/holidays instead of breaking/cutting off.
-            # But we only do this for past dates, otherwise future dates will plot a flat 0 line.
             display_actual = actual
             if display_actual is None and f.date <= today:
                 display_actual = 0
 
-            comparison_data.append(
-                {"date": date_str, "actual": display_actual, "predicted": predicted}
-            )
+            # Determine explicit type tag
+            if actual is not None:
+                day_type = "out_of_sample_forecast"
+            elif f.date <= today:
+                day_type = "out_of_sample_forecast"
+            else:
+                day_type = "future_forecast"
+
+            comparison_data.append({
+                "date": date_str,
+                "actual": display_actual,
+                "predicted": predicted,
+                "type": day_type
+            })
 
             if actual is not None:
                 actual_vals.append(actual)
                 pred_vals.append(predicted)
 
-        # Calculate dynamic volume threshold based on the branch's own data
-        # Use 10% of median to filter out near-zero anomaly days
+        # Calculate dynamic volume threshold based on out-of-sample actuals
         if actual_vals:
             median_volume = float(np.median(actual_vals))
             volume_threshold = max(10, median_volume * 0.10)
         else:
             volume_threshold = 10
 
-        # Second pass: compute WMAPE errors with the dynamic threshold
+        # Compute WMAPE errors strictly on real out-of-sample forecast days (excluding in_sample_history)
         valid_actuals = []
         valid_preds = []
         for f in forecasts:
@@ -1418,7 +1424,7 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
                     "rmse": 0,
                     "mape": 0,
                     "accuracy": 100,
-                    "dataPoints": len(forecasts),
+                    "dataPoints": 0,
                 },
                 "comparisonData": comparison_data,
                 "totals": {
@@ -1428,10 +1434,6 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
                 },
             }
 
-        actual_vals = np.array(actual_vals)
-        pred_vals = np.array(pred_vals)
-
-        mae = float(np.mean(np.abs(actual_vals - pred_vals)))
         rmse = float(np.sqrt(np.mean((actual_vals - pred_vals) ** 2)))
 
         if sum(valid_actuals) > 0:
