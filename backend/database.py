@@ -1399,6 +1399,9 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
                     valid_actuals.append(actual)
                     valid_preds.append(f.predicted)
 
+        total_act = int(sum(item["actual"] for item in comparison_data if item.get("actual") is not None))
+        total_pred = int(sum(item["predicted"] for item in comparison_data if item.get("predicted") is not None))
+
         # If we have NO actual data for this month at all
         if len(actual_vals) == 0:
             return {
@@ -1411,9 +1414,9 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
                 },
                 "comparisonData": comparison_data,
                 "totals": {
-                    "actualTotal": 0,
-                    "predictedTotal": int(sum(f.predicted for f in forecasts)),
-                    "difference": int(sum(f.predicted for f in forecasts)),
+                    "actualTotal": total_act,
+                    "predictedTotal": total_pred,
+                    "difference": total_pred - total_act,
                 },
             }
 
@@ -1434,6 +1437,9 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
             
         accuracy = max(0.0, round(100.0 - mape, 2))
 
+        total_act = int(sum(item["actual"] for item in comparison_data if item.get("actual") is not None))
+        total_pred = int(sum(item["predicted"] for item in comparison_data if item.get("predicted") is not None))
+
         return {
             "metrics": {
                 "mae": round(mae, 2),
@@ -1444,9 +1450,9 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
             },
             "comparisonData": comparison_data,
             "totals": {
-                "actualTotal": int(sum(actual_vals)),
-                "predictedTotal": int(sum(pred_vals)),
-                "difference": int(sum(pred_vals) - sum(actual_vals)),
+                "actualTotal": total_act,
+                "predictedTotal": total_pred,
+                "difference": total_pred - total_act,
             },
             "month": f"{year}-{month}" if month and year else "ALL",
             "year": year or 0,
