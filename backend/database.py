@@ -1267,10 +1267,25 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
                 actuals_query = actuals_query.filter(extract("month", ActualTraffic.date) == month)
             if year:
                 actuals_query = actuals_query.filter(extract("year", ActualTraffic.date) == year)
-            
             hist_actuals = actuals_query.order_by(ActualTraffic.date).all()
             if not hist_actuals:
-                return None
+                return {
+                    "metrics": {
+                        "mae": 0.0,
+                        "rmse": 0.0,
+                        "mape": 0.0,
+                        "accuracy": 100.0,
+                        "dataPoints": 0,
+                    },
+                    "comparisonData": [],
+                    "totals": {
+                        "actualTotal": 0,
+                        "predictedTotal": 0,
+                        "difference": 0,
+                    },
+                    "month": f"{year}-{month}" if month and year else "ALL",
+                    "year": year or 0,
+                }
                 
             comp_data = []
             act_list = []

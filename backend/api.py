@@ -909,12 +909,13 @@ async def get_validation(
     if branch_id is None:
         raise HTTPException(status_code=500, detail="Branch not found")
 
-    # Resolve category_name to category_id (0 = aggregate, no category filter)
     category_id = 0
     if category_name:
         resolved_cat_id = get_category_id_by_name(category_name, branch_id)
         if resolved_cat_id is not None:
             category_id = resolved_cat_id
+        else:
+            category_id = -1
 
     # Validation is done on the requested prediction year
     val_year = year
