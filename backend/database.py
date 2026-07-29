@@ -1355,9 +1355,7 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
             predicted = f.predicted
             actual = actuals.get(f.date)
             
-            display_actual = actual
-            if display_actual is None and f.date <= today:
-                display_actual = 0
+            display_actual = actual if actual is not None else 0
 
             # Determine explicit type tag
             if actual is not None:
