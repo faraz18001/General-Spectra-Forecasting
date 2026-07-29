@@ -1231,13 +1231,12 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
         if not latest_run:
             return None
 
-        # 1. Fetch Forecasts for the month
+        # 1. Fetch Forecasts for the month across all runs, deduplicating by date to keep the EARLIEST training_run_id (origin forecast) for each date
         from sqlalchemy import extract
 
         forecast_query = db.query(DailyForecast).filter(
             DailyForecast.branch_id == branch_id,
             DailyForecast.category_id == category_id,
-            DailyForecast.training_run_id == latest_run.id,
         )
 
         if month:
@@ -1249,28 +1248,14 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
                 extract("year", DailyForecast.date) == year
             )
 
-        forecasts = forecast_query.order_by(DailyForecast.date).all()
-        
-        # Fallback 1: If latest run has no forecasts for this month (e.g. historical month), check prior runs
-        if not forecasts:
-            fallback_query = db.query(DailyForecast).filter(
-                DailyForecast.branch_id == branch_id,
-                DailyForecast.category_id == category_id,
-            )
-            if month:
-                fallback_query = fallback_query.filter(extract("month", DailyForecast.date) == month)
-            if year:
-                fallback_query = fallback_query.filter(extract("year", DailyForecast.date) == year)
-            
-            raw_fallback = fallback_query.order_by(DailyForecast.training_run_id.desc(), DailyForecast.date).all()
-            if raw_fallback:
-                seen_dates = set()
-                dedup_forecasts = []
-                for f in raw_fallback:
-                    if f.date not in seen_dates:
-                        seen_dates.add(f.date)
-                        dedup_forecasts.append(f)
-                forecasts = sorted(dedup_forecasts, key=lambda x: x.date)
+        all_forecasts = forecast_query.order_by(DailyForecast.date.asc(), DailyForecast.training_run_id.asc()).all()
+
+        forecasts_by_date = {}
+        for f in all_forecasts:
+            if f.date not in forecasts_by_date:
+                forecasts_by_date[f.date] = f
+
+        forecasts = [forecasts_by_date[d] for d in sorted(forecasts_by_date.keys())]
 
         # Fallback 2: If STILL no forecasts exist (e.g. raw training data month), fetch actuals & synthesize comparison
         if not forecasts:
