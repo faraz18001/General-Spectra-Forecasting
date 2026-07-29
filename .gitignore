@@ -62,10 +62,13 @@ fore/
 *.rar
 
 # Data
-Data/**/*.parquet
-Data/**/*.xlsx
-Data/**/*.xls
-Data/**/*.csv
+Data/
+../Data/
+*.parquet
+*.xlsx
+*.xls
+*.csv
+*.zip
 backend/saved_state/
 
 # Other
