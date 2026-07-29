@@ -776,6 +776,7 @@ async def get_weekly_pattern_by_month(
     month: int = 1,
     branch_name: Optional[str] = None,
     category_name: Optional[str] = None,
+    category: Optional[str] = None,
     allowed_branches: Optional[str] = None,
 ):
     from datetime import date
@@ -786,13 +787,19 @@ async def get_weekly_pattern_by_month(
     b_name = branch_name if branch_name else "ALL"
     branch_id = get_branch_id_by_name(b_name)
     if branch_id is None:
-        return []
+        return [
+            {"day": d, "average": 0}
+            for d in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        ]
 
+    effective_cat_name = category_name or category
     category_id = 0
-    if category_name:
-        cid = get_category_id_by_name(category_name, branch_id)
+    if effective_cat_name:
+        cid = get_category_id_by_name(effective_cat_name, branch_id)
         if cid is not None:
             category_id = cid
+        else:
+            category_id = -1
 
     return get_weekly_pattern_from_db(branch_id, category_id, month, year)
 

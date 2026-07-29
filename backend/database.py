@@ -1156,9 +1156,19 @@ def get_weekly_pattern_from_db(branch_id, category_id=0, month=None, year=None):
                 extract("year", DailyForecast.date) == year
             )
 
+        day_order = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
+
         results = query.all()
         if not results:
-            return []
+            return [{"day": d, "average": 0} for d in day_order]
 
         # Group by day_of_week and average
         from collections import defaultdict
