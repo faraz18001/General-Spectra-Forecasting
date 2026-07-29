@@ -1302,7 +1302,12 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
             for a in hist_actuals:
                 d_str = a.date.strftime("%Y-%m-%d")
                 val = a.actual_count
-                comp_data.append({"date": d_str, "actual": val, "predicted": val})
+                comp_data.append({
+                    "date": d_str,
+                    "actual": val,
+                    "predicted": val,
+                    "type": "in_sample_history",
+                })
                 act_list.append(val)
                 
             total_vol = sum(act_list)
