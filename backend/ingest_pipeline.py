@@ -98,10 +98,13 @@ def process_parquet(file_path):
     # Incremental Filtering: Filter out dates already ingested into actual_traffic
     db_check = LocalSession()
     try:
-        max_db_date = db_check.query(func.max(ActualTraffic.date)).scalar()
-        if max_db_date is not None:
-            df = df[df[date_col].dt.date > max_db_date]
-            print(f"  Incremental Filter: Kept {len(df)} new rows (newer than last ingested date {max_db_date})")
+        file_dates = set(df[date_col].dt.date.unique())
+        existing_db_dates = set(
+            r[0] for r in db_check.query(ActualTraffic.date).filter(ActualTraffic.date.in_(file_dates)).all()
+        )
+        if existing_db_dates:
+            df = df[~df[date_col].dt.date.isin(existing_db_dates)]
+            print(f"  Incremental Filter: Kept {len(df)} new rows (filtered out {len(existing_db_dates)} dates already in DB)")
     except Exception as e:
         print(f"  Warning during incremental date filter check: {e}")
     finally:
