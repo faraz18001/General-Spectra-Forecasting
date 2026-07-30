@@ -47,10 +47,14 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, 'forecast_app.db')}"
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-    print("Using local SQLite database (no MSSQL credentials found)")
-
 LocalSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+
+def should_exclude_weekends() -> bool:
+    """Helper function to check if weekends should be excluded based on EXCLUDE_WEEKENDS in environment."""
+    val = os.getenv("EXCLUDE_WEEKENDS", "false").strip().lower()
+    return val in ("true", "1", "t", "yes")
 
 
 # Database Models
@@ -1156,15 +1160,19 @@ def get_weekly_pattern_from_db(branch_id, category_id=0, month=None, year=None):
                 extract("year", DailyForecast.date) == year
             )
 
-        day_order = [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-        ]
+        day_order = (
+            ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+            if should_exclude_weekends()
+            else [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday",
+            ]
+        )
 
         results = query.all()
         if not results:
@@ -1177,15 +1185,6 @@ def get_weekly_pattern_from_db(branch_id, category_id=0, month=None, year=None):
         for r in results:
             day_totals[r.day_of_week].append(r.predicted)
 
-        day_order = [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-        ]
         pattern = []
         for day in day_order:
             vals = day_totals.get(day, [])
@@ -1428,6 +1427,13 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
                 if volume_ok and not is_eid and not is_weekend:
                     valid_actuals.append(actual)
                     valid_preds.append(f.predicted)
+
+        if should_exclude_weekends():
+            from datetime import datetime
+            comparison_data = [
+                c for c in comparison_data
+                if datetime.strptime(c["date"], "%Y-%m-%d").weekday() < 5
+            ]
 
         total_act = int(sum(item["actual"] for item in comparison_data if item.get("actual") is not None))
         total_pred = int(sum(item["predicted"] for item in comparison_data if item.get("predicted") is not None))
