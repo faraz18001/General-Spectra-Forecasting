@@ -1175,7 +1175,32 @@ def get_weekly_pattern_from_db(branch_id, category_id=0, month=None, year=None):
         )
 
         results = query.all()
-        if not results:
+        has_positive = any(r.predicted > 0 for r in results) if results else False
+
+        if not results or not has_positive:
+            # Fallback for past months: query validation data for historical actuals/forecasts
+            val_data = get_validation_data_from_db(branch_id, category_id, month=month, year=year)
+            if val_data and val_data.get("comparisonData"):
+                from collections import defaultdict
+                from datetime import datetime
+
+                day_totals = defaultdict(list)
+                for item in val_data["comparisonData"]:
+                    # Prefer actual traffic count if available, otherwise predicted
+                    val = item.get("actual") if item.get("actual", 0) > 0 else item.get("predicted", 0)
+                    if val > 0:
+                        d_obj = datetime.strptime(item["date"], "%Y-%m-%d")
+                        day_name = d_obj.strftime("%A")
+                        day_totals[day_name].append(val)
+
+                if day_totals:
+                    pattern = []
+                    for day in day_order:
+                        vals = day_totals.get(day, [])
+                        avg = round(sum(vals) / len(vals)) if vals else 0
+                        pattern.append({"day": day, "average": avg})
+                    return pattern
+
             return [{"day": d, "average": 0} for d in day_order]
 
         # Group by day_of_week and average
