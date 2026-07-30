@@ -1160,6 +1160,35 @@ def get_weekly_pattern_from_db(branch_id, category_id=0, month=None, year=None):
                 extract("year", DailyForecast.date) == year
             )
 
+        results = query.all()
+
+        # If latest training run has no forecast rows for this requested month,
+        # search earlier successful training runs for predictions matching this month/year!
+        if not results:
+            successful_run_ids = [
+                r.id for r in db.query(TrainingRun.id)
+                .filter(TrainingRun.status == "success")
+                .order_by(TrainingRun.id.desc())
+                .all()
+            ]
+            for run_id in successful_run_ids[1:]:
+                fallback_q = db.query(DailyForecast).filter(
+                    DailyForecast.training_run_id == run_id,
+                    DailyForecast.branch_id == branch_id,
+                    DailyForecast.category_id == category_id,
+                )
+                if month:
+                    from sqlalchemy import extract
+                    fallback_q = fallback_q.filter(extract("month", DailyForecast.date) == month)
+                if year:
+                    from sqlalchemy import extract
+                    fallback_q = fallback_q.filter(extract("year", DailyForecast.date) == year)
+
+                fallback_res = fallback_q.all()
+                if fallback_res:
+                    results = fallback_res
+                    break
+
         day_order = (
             ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
             if should_exclude_weekends()
@@ -1174,7 +1203,6 @@ def get_weekly_pattern_from_db(branch_id, category_id=0, month=None, year=None):
             ]
         )
 
-        results = query.all()
         if not results:
             return [{"day": d, "average": 0} for d in day_order]
 
