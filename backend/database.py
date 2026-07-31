@@ -1117,79 +1117,85 @@ def get_stats_from_db(branch_id, category_id=0):
         db.close()
 
 
+def get_forecast_rows_for_month_year(db, branch_id, category_id, month=None, year=None):
+    """Unified helper to fetch consistent forecast rows across all endpoints."""
+    from sqlalchemy import extract
+
+    latest_run = (
+        db.query(TrainingRun)
+        .filter(TrainingRun.status == "success")
+        .order_by(TrainingRun.id.desc())
+        .first()
+    )
+    if not latest_run:
+        return []
+
+    query = db.query(DailyForecast).filter(
+        DailyForecast.training_run_id == latest_run.id,
+        DailyForecast.branch_id == branch_id,
+        DailyForecast.category_id == category_id,
+    )
+    if month:
+        query = query.filter(extract("month", DailyForecast.date) == month)
+    if year:
+        query = query.filter(extract("year", DailyForecast.date) == year)
+
+    results = query.all()
+    has_full_month = len(results) >= 5 and any(r.predicted > 0 for r in results)
+
+    # Search earlier successful runs if latest run has no full forecast coverage for this month
+    if not results or not has_full_month:
+        successful_run_ids = [
+            r.id for r in db.query(TrainingRun.id)
+            .filter(TrainingRun.status == "success")
+            .order_by(TrainingRun.id.desc())
+            .all()
+        ]
+        for run_id in successful_run_ids[1:]:
+            fallback_q = db.query(DailyForecast).filter(
+                DailyForecast.training_run_id == run_id,
+                DailyForecast.branch_id == branch_id,
+                DailyForecast.category_id == category_id,
+            )
+            if month:
+                fallback_q = fallback_q.filter(extract("month", DailyForecast.date) == month)
+            if year:
+                fallback_q = fallback_q.filter(extract("year", DailyForecast.date) == year)
+
+            fallback_res = fallback_q.all()
+            if fallback_res and len(fallback_res) >= 5 and any(r.predicted > 0 for r in fallback_res):
+                results = fallback_res
+                break
+
+    # 3. If STILL no forecast rows exist in DailyForecast (e.g. raw historical training data month), fetch actuals
+    if not results:
+        actuals_q = db.query(ActualTraffic).filter(
+            ActualTraffic.branch_id == branch_id,
+            ActualTraffic.category_id == category_id,
+        )
+        if month:
+            actuals_q = actuals_q.filter(extract("month", ActualTraffic.date) == month)
+        if year:
+            actuals_q = actuals_q.filter(extract("year", ActualTraffic.date) == year)
+        hist_actuals = actuals_q.all()
+        if hist_actuals:
+            class SyntheticForecast:
+                def __init__(self, date, predicted, day_of_week):
+                    self.date = date
+                    self.predicted = predicted
+                    self.day_of_week = day_of_week
+            results = [SyntheticForecast(a.date, a.actual_count, a.date.strftime("%A")) for a in hist_actuals]
+
+    return results
+
+
 def get_weekly_pattern_from_db(branch_id, category_id=0, month=None, year=None):
     """
     Get weekly pattern from forecasts grouped by day of week.
-    
-    Args:
-        branch_id (int): ID of the Branch.
-        category_id (int): ID of the Category. Defaults to 0.
-        month (int, optional): Optional filter for month. Defaults to None.
-        year (int, optional): Optional filter for year. Defaults to None.
-        
-    Returns:
-        list of dict: A list of day objects sorted by standard week progression:
-            - day (str): Day name (e.g. 'Monday', 'Tuesday', ...).
-            - average (int): Average forecasted tickets for that day of the week.
     """
     db = LocalSession()
     try:
-        latest_run = (
-            db.query(TrainingRun)
-            .filter(TrainingRun.status == "success")
-            .order_by(TrainingRun.id.desc())
-            .first()
-        )
-        if not latest_run:
-            return []
-
-        query = db.query(DailyForecast).filter(
-            DailyForecast.training_run_id == latest_run.id,
-            DailyForecast.branch_id == branch_id,
-            DailyForecast.category_id == category_id,
-        )
-
-        if month:
-            from sqlalchemy import extract
-            query = query.filter(
-                extract("month", DailyForecast.date) == month
-            )
-        if year:
-            from sqlalchemy import extract
-            query = query.filter(
-                extract("year", DailyForecast.date) == year
-            )
-
-        results = query.all()
-        # Ensure we have a full month forecast (at least 5 days), not just a single residual day
-        has_full_month = len(results) >= 5 and any(r.predicted > 0 for r in results)
-
-        # If latest training run has no full month forecast rows for this requested month,
-        # search earlier successful training runs for pure full predictions matching this month/year!
-        if not results or not has_full_month:
-            successful_run_ids = [
-                r.id for r in db.query(TrainingRun.id)
-                .filter(TrainingRun.status == "success")
-                .order_by(TrainingRun.id.desc())
-                .all()
-            ]
-            for run_id in successful_run_ids[1:]:
-                fallback_q = db.query(DailyForecast).filter(
-                    DailyForecast.training_run_id == run_id,
-                    DailyForecast.branch_id == branch_id,
-                    DailyForecast.category_id == category_id,
-                )
-                if month:
-                    from sqlalchemy import extract
-                    fallback_q = fallback_q.filter(extract("month", DailyForecast.date) == month)
-                if year:
-                    from sqlalchemy import extract
-                    fallback_q = fallback_q.filter(extract("year", DailyForecast.date) == year)
-
-                fallback_res = fallback_q.all()
-                if fallback_res and len(fallback_res) >= 5 and any(r.predicted > 0 for r in fallback_res):
-                    results = fallback_res
-                    break
+        results = get_forecast_rows_for_month_year(db, branch_id, category_id, month=month, year=year)
 
         day_order = (
             ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
@@ -1270,31 +1276,10 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
         if not latest_run:
             return None
 
-        # 1. Fetch Forecasts for the month across all runs, deduplicating by date to keep the EARLIEST training_run_id (origin forecast) for each date
+        # Fetch Forecasts for the month using unified helper to ensure 100% alignment with weekly pattern
+        forecasts = get_forecast_rows_for_month_year(db, branch_id, category_id, month=month, year=year)
+
         from sqlalchemy import extract
-
-        forecast_query = db.query(DailyForecast).filter(
-            DailyForecast.branch_id == branch_id,
-            DailyForecast.category_id == category_id,
-        )
-
-        if month:
-            forecast_query = forecast_query.filter(
-                extract("month", DailyForecast.date) == month
-            )
-        if year:
-            forecast_query = forecast_query.filter(
-                extract("year", DailyForecast.date) == year
-            )
-
-        all_forecasts = forecast_query.order_by(DailyForecast.date.asc(), DailyForecast.training_run_id.asc()).all()
-
-        forecasts_by_date = {}
-        for f in all_forecasts:
-            if f.date not in forecasts_by_date:
-                forecasts_by_date[f.date] = f
-
-        forecasts = [forecasts_by_date[d] for d in sorted(forecasts_by_date.keys())]
 
         # Fallback 2: If STILL no forecasts exist (e.g. raw training data month), fetch actuals & synthesize comparison
         if not forecasts:
