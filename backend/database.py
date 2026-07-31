@@ -1161,10 +1161,11 @@ def get_weekly_pattern_from_db(branch_id, category_id=0, month=None, year=None):
             )
 
         results = query.all()
+        has_positive = any(r.predicted > 0 for r in results) if results else False
 
-        # If latest training run has no forecast rows for this requested month,
-        # search earlier successful training runs for predictions matching this month/year!
-        if not results:
+        # If latest training run has no positive forecast rows for this requested month,
+        # search earlier successful training runs for pure predictions matching this month/year!
+        if not results or not has_positive:
             successful_run_ids = [
                 r.id for r in db.query(TrainingRun.id)
                 .filter(TrainingRun.status == "success")
@@ -1185,7 +1186,7 @@ def get_weekly_pattern_from_db(branch_id, category_id=0, month=None, year=None):
                     fallback_q = fallback_q.filter(extract("year", DailyForecast.date) == year)
 
                 fallback_res = fallback_q.all()
-                if fallback_res:
+                if fallback_res and any(r.predicted > 0 for r in fallback_res):
                     results = fallback_res
                     break
 
