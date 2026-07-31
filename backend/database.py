@@ -1120,14 +1120,35 @@ def get_stats_from_db(branch_id, category_id=0):
 def get_forecast_rows_for_month_year(db, branch_id, category_id, month=None, year=None):
     """Unified helper to fetch consistent forecast rows across all endpoints.
 
-    Rule:
-    - Use the EARLIEST successful training run that has predictions for the requested month/year.
-    - This freezes past forecasts permanently (e.g. July always returns Run #1 predictions).
-    - Future months automatically use the latest run after retraining.
+    This function is the single source of truth for which DailyForecast rows
+    are used by both the validation endpoint and the weekly pattern endpoint.
+    Both endpoints call this function, which is what guarantees they always
+    return identical predicted values for any given month.
+
+    The core design decision here is: use the EARLIEST successful training run
+    that has predictions for the requested month. This achieves two things:
+
+    1. Past forecast months are permanently frozen. If Run #1 trained up to
+       July 29th and predicted July 30 and July 31, then querying July will
+       always return those exact Run #1 predictions regardless of how many
+       retraining cycles happen after that. The historical forecast record
+       does not mutate.
+
+    2. Future months are automatically served by the latest training run.
+       After each monthly retrain, any month that was not yet predicted by
+       an earlier run will naturally fall through to the newest run.
+
+    The original implementation queried only the latest run (order_by desc,
+    first()). This broke down as soon as a second training run existed:
+    the latest run might only have a single residual day for a month that
+    the earlier run had fully predicted, resulting in garbage weekly pattern
+    averages and a mismatch between validation and weekly pattern outputs.
+    Multiple fallback strategies were tried (minimum 5-row threshold, positive
+    prediction checks) but all of them introduced edge cases. The correct fix
+    was to invert the query direction entirely and walk oldest-to-newest.
     """
     from sqlalchemy import extract
 
-    # Get all successful runs in ascending order (oldest first)
     successful_runs = (
         db.query(TrainingRun)
         .filter(TrainingRun.status == "success")
@@ -1137,7 +1158,11 @@ def get_forecast_rows_for_month_year(db, branch_id, category_id, month=None, yea
     if not successful_runs:
         return []
 
-    # Walk from oldest to newest — use the FIRST run that has predictions for this month/year
+    # Walk from oldest run to newest. Return immediately on the first run
+    # that has any DailyForecast rows for the requested month and year.
+    # Because we go oldest-first, the first match is always the origin
+    # forecast for that month — the one the model produced when it first
+    # crossed into that month's prediction horizon.
     for run in successful_runs:
         query = db.query(DailyForecast).filter(
             DailyForecast.training_run_id == run.id,
@@ -1158,7 +1183,28 @@ def get_forecast_rows_for_month_year(db, branch_id, category_id, month=None, yea
 
 def get_weekly_pattern_from_db(branch_id, category_id=0, month=None, year=None):
     """
-    Get weekly pattern from forecasts grouped by day of week.
+    Returns the average predicted ticket count per day of the week for the given month.
+
+    The calculation is a straight average of DailyForecast.predicted values grouped
+    by day of week. Only rows sourced from DailyForecast are included — meaning only
+    out_of_sample_forecast and future_forecast days contribute to the average.
+    in_sample_history days (actual ticket counts from ActualTraffic that predate the
+    model's prediction start) are never part of this calculation because they come
+    from a different table entirely and are never returned by get_forecast_rows_for_month_year.
+
+    Formula for each weekday:
+        average = round( sum(predicted for all occurrences of that weekday) / count )
+
+    If the model only started predicting in the last few days of a month (e.g. July,
+    where predictions began on the 30th), then only those days contribute. A weekday
+    with zero forecast rows for the month returns 0, not a fallback or interpolation.
+    This is intentional — the weekly pattern reflects exactly what the model predicted
+    and nothing more.
+
+    Both this function and get_validation_data_from_db call get_forecast_rows_for_month_year
+    as their shared data source. This is what guarantees the weekly pattern averages and
+    the validation comparisonData predicted values are always derived from the same rows.
+    Any divergence between the two endpoints is impossible by construction.
     """
     db = LocalSession()
     try:
@@ -1181,7 +1227,6 @@ def get_weekly_pattern_from_db(branch_id, category_id=0, month=None, year=None):
         if not results:
             return [{"day": d, "average": 0} for d in day_order]
 
-        # Group by day_of_week and average
         from collections import defaultdict
 
         day_totals = defaultdict(list)
@@ -1243,7 +1288,14 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
         if not latest_run:
             return None
 
-        # Fetch Forecasts for the month using unified helper to ensure 100% alignment with weekly pattern
+        # Pull forecast rows through the shared selection engine rather than querying
+        # DailyForecast directly here. The earlier implementation queried the latest
+        # training run directly inside this function, which caused the validation endpoint
+        # and the weekly pattern endpoint to silently use different training runs for the
+        # same month. The result was that the two endpoints returned numerically different
+        # predicted values for identical date ranges with no visible error — just wrong data.
+        # Routing both through get_forecast_rows_for_month_year makes that class of
+        # divergence structurally impossible.
         forecasts = get_forecast_rows_for_month_year(db, branch_id, category_id, month=month, year=year)
 
         from sqlalchemy import extract
@@ -1346,7 +1398,14 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
                             eid_dates.add(current.strftime("%Y-%m-%d"))
                             current += pd.Timedelta(days=1)
 
-        # First pass: collect historical actual dates that occur before forecast start date (in-sample training history)
+        # First pass: inject in_sample_history rows for actual dates that fall before
+        # the model's first prediction date. These are days the model was trained on,
+        # not days it predicted. For display purposes predicted is set equal to actual
+        # so the frontend chart shows a flat line with zero error on training days.
+        # These rows are tagged in_sample_history so consumers can distinguish them
+        # from genuine forecast rows. Critically, get_weekly_pattern_from_db does not
+        # touch these rows at all — it reads directly from DailyForecast via the shared
+        # helper, so in_sample_history values never bleed into the weekly pattern averages.
         for act_date in sorted(actuals.keys()):
             if not forecasts or act_date < forecasts[0].date:
                 date_str = act_date.strftime("%Y-%m-%d")
@@ -1394,7 +1453,26 @@ def get_validation_data_from_db(branch_id, category_id=0, month=None, year=None,
         else:
             volume_threshold = 10
 
-        # Compute WMAPE errors strictly on real out-of-sample forecast days (excluding in_sample_history)
+        # WMAPE is computed on a filtered subset of out-of-sample days only.
+        # Three categories of days are explicitly excluded from the error calculation:
+        #
+        # 1. Weekends — weekend ticket volumes are structurally near-zero for most
+        #    service categories. Including them inflates MAPE disproportionately
+        #    because even a small absolute error produces a massive percentage error
+        #    when the denominator (actual) is near zero.
+        #
+        # 2. Eid holiday periods — passed in via events_list. Volume during Eid
+        #    drops to near-zero due to closures. Including these days in MAPE
+        #    produces the same denominator-collapse problem as weekends and makes
+        #    the reported accuracy look far worse than the model actually performs
+        #    on normal operating days.
+        #
+        # 3. Low volume days below the dynamic threshold — the threshold is set at
+        #    10% of the median actual volume observed in the out-of-sample window,
+        #    with a hard floor of 10 tickets. Days below this are likely anomalies
+        #    (partial days, system outages, early closures) rather than legitimate
+        #    low-demand signals. Filtering them prevents a handful of atypical days
+        #    from dominating the reported error metrics.
         valid_actuals = []
         valid_preds = []
         for f in forecasts:
