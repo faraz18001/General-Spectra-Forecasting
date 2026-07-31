@@ -1141,10 +1141,10 @@ def get_forecast_rows_for_month_year(db, branch_id, category_id, month=None, yea
         query = query.filter(extract("year", DailyForecast.date) == year)
 
     results = query.all()
-    has_full_month = len(results) >= 5 and any(r.predicted > 0 for r in results)
+    has_positive = any(r.predicted > 0 for r in results) if results else False
 
-    # Search earlier successful runs if latest run has no full forecast coverage for this month
-    if not results or not has_full_month:
+    # Search earlier successful runs if latest run has no positive forecast coverage for this month
+    if not results or not has_positive:
         successful_run_ids = [
             r.id for r in db.query(TrainingRun.id)
             .filter(TrainingRun.status == "success")
@@ -1163,28 +1163,9 @@ def get_forecast_rows_for_month_year(db, branch_id, category_id, month=None, yea
                 fallback_q = fallback_q.filter(extract("year", DailyForecast.date) == year)
 
             fallback_res = fallback_q.all()
-            if fallback_res and len(fallback_res) >= 5 and any(r.predicted > 0 for r in fallback_res):
+            if fallback_res and any(r.predicted > 0 for r in fallback_res):
                 results = fallback_res
                 break
-
-    # 3. If STILL no forecast rows exist in DailyForecast (e.g. raw historical training data month), fetch actuals
-    if not results:
-        actuals_q = db.query(ActualTraffic).filter(
-            ActualTraffic.branch_id == branch_id,
-            ActualTraffic.category_id == category_id,
-        )
-        if month:
-            actuals_q = actuals_q.filter(extract("month", ActualTraffic.date) == month)
-        if year:
-            actuals_q = actuals_q.filter(extract("year", ActualTraffic.date) == year)
-        hist_actuals = actuals_q.all()
-        if hist_actuals:
-            class SyntheticForecast:
-                def __init__(self, date, predicted, day_of_week):
-                    self.date = date
-                    self.predicted = predicted
-                    self.day_of_week = day_of_week
-            results = [SyntheticForecast(a.date, a.actual_count, a.date.strftime("%A")) for a in hist_actuals]
 
     return results
 
