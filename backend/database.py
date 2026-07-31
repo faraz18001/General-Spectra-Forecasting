@@ -1141,10 +1141,10 @@ def get_forecast_rows_for_month_year(db, branch_id, category_id, month=None, yea
         query = query.filter(extract("year", DailyForecast.date) == year)
 
     results = query.all()
-    has_positive = any(r.predicted > 0 for r in results) if results else False
+    has_valid_coverage = len(results) >= 5 and any(r.predicted > 0 for r in results)
 
-    # Search earlier successful runs if latest run has no positive forecast coverage for this month
-    if not results or not has_positive:
+    # Search earlier successful runs if latest run has only a single residual day or no forecast coverage
+    if not results or not has_valid_coverage:
         successful_run_ids = [
             r.id for r in db.query(TrainingRun.id)
             .filter(TrainingRun.status == "success")
