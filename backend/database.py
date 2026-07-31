@@ -1118,56 +1118,42 @@ def get_stats_from_db(branch_id, category_id=0):
 
 
 def get_forecast_rows_for_month_year(db, branch_id, category_id, month=None, year=None):
-    """Unified helper to fetch consistent forecast rows across all endpoints."""
+    """Unified helper to fetch consistent forecast rows across all endpoints.
+
+    Rule:
+    - Use the EARLIEST successful training run that has predictions for the requested month/year.
+    - This freezes past forecasts permanently (e.g. July always returns Run #1 predictions).
+    - Future months automatically use the latest run after retraining.
+    """
     from sqlalchemy import extract
 
-    latest_run = (
+    # Get all successful runs in ascending order (oldest first)
+    successful_runs = (
         db.query(TrainingRun)
         .filter(TrainingRun.status == "success")
-        .order_by(TrainingRun.id.desc())
-        .first()
+        .order_by(TrainingRun.id.asc())
+        .all()
     )
-    if not latest_run:
+    if not successful_runs:
         return []
 
-    query = db.query(DailyForecast).filter(
-        DailyForecast.training_run_id == latest_run.id,
-        DailyForecast.branch_id == branch_id,
-        DailyForecast.category_id == category_id,
-    )
-    if month:
-        query = query.filter(extract("month", DailyForecast.date) == month)
-    if year:
-        query = query.filter(extract("year", DailyForecast.date) == year)
+    # Walk from oldest to newest — use the FIRST run that has predictions for this month/year
+    for run in successful_runs:
+        query = db.query(DailyForecast).filter(
+            DailyForecast.training_run_id == run.id,
+            DailyForecast.branch_id == branch_id,
+            DailyForecast.category_id == category_id,
+        )
+        if month:
+            query = query.filter(extract("month", DailyForecast.date) == month)
+        if year:
+            query = query.filter(extract("year", DailyForecast.date) == year)
 
-    results = query.all()
-    has_valid_coverage = len(results) >= 5 and any(r.predicted > 0 for r in results)
+        results = query.all()
+        if results:
+            return results
 
-    # Search earlier successful runs if latest run has only a single residual day or no forecast coverage
-    if not results or not has_valid_coverage:
-        successful_run_ids = [
-            r.id for r in db.query(TrainingRun.id)
-            .filter(TrainingRun.status == "success")
-            .order_by(TrainingRun.id.desc())
-            .all()
-        ]
-        for run_id in successful_run_ids[1:]:
-            fallback_q = db.query(DailyForecast).filter(
-                DailyForecast.training_run_id == run_id,
-                DailyForecast.branch_id == branch_id,
-                DailyForecast.category_id == category_id,
-            )
-            if month:
-                fallback_q = fallback_q.filter(extract("month", DailyForecast.date) == month)
-            if year:
-                fallback_q = fallback_q.filter(extract("year", DailyForecast.date) == year)
-
-            fallback_res = fallback_q.all()
-            if fallback_res and any(r.predicted > 0 for r in fallback_res):
-                results = fallback_res
-                break
-
-    return results
+    return []
 
 
 def get_weekly_pattern_from_db(branch_id, category_id=0, month=None, year=None):
