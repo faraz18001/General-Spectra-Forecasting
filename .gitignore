@@ -1,0 +1,62 @@
+# Dependencies & Environments
+node_modules/
+vendor/
+venv/
+.venv/
+env/
+ENV/
+fore/
+virtual/
+
+# Build outputs & Cache
+dist/
+build/
+out/
+*.log
+*.tmp
+*.temp
+*.cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+.ruff_cache/
+
+# Environment & Credentials
+.env
+.env.local
+.env.*.local
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Database & Large Archives
+*.sqlite
+*.sqlite3
+*.db
+*.parquet
+*.xlsx
+*.xls
+*.csv
+*.zip
+*.rar
+backend/saved_state/
+backend/itemiq.db
+backend/test_itemiq.db
+
+# System & Secondary folders
+.gemini/
+.agents/
